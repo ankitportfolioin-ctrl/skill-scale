@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%" fill="none">
+  <!-- Indigo Background with rounded corners -->
+  <rect width="120" height="120" rx="26" fill="#1e1b4b"/>
+  
+  <g transform="translate(14, 16)">
+    <!-- Left Bracket < (with 3D depth facets) -->
+    <!-- Shadow / 3D Extrusion -->
+    <path d="M 33 22 L 13 44 L 13 46 L 33 68 L 33 58 L 22 45 L 33 32 Z" fill="#1E1B4B" opacity="0.45"/>
+    <path d="M 33 22 L 31 20 L 11 42 L 11 46 L 31 68 L 33 66 L 15 45 Z" fill="#E0E7FF"/>
+    <!-- Front Face -->
+    <path d="M 31 20 L 9 43 L 9 47 L 31 70 L 31 59 L 18 45 L 31 31 Z" fill="#FFFFFF"/>
+
+    <!-- Center Slash / (with 3D depth facets) -->
+    <!-- 3D Extrusion -->
+    <polygon points="56,7 58,9 38,82 36,80" fill="#1E1B4B" opacity="0.45"/>
+    <polygon points="54,6 57,8 37,81 34,79" fill="#E0E7FF"/>
+    <!-- Front Face -->
+    <polygon points="53,5 45,5 31,80 39,80" fill="#FFFFFF"/>
+
+    <!-- Right Bracket > (with 3D depth facets) -->
+    <!-- Shadow / 3D Extrusion -->
+    <path d="M 59 32 L 70 45 L 59 58 L 59 68 L 79 46 L 79 44 L 59 22 Z" fill="#1E1B4B" opacity="0.45"/>
+    <path d="M 59 30 L 72 44 L 59 58 L 61 68 L 81 46 L 81 42 L 61 20 Z" fill="#E0E7FF"/>
+    <!-- Front Face -->
+    <path d="M 61 31 L 74 45 L 61 59 L 61 70 L 83 47 L 83 43 L 61 20 Z" fill="#FFFFFF"/>
+  </g>
+</svg>

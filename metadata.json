@@ -1,0 +1,6 @@
+{
+  "name": "SkillScale — Curated E-Book Library & Practical Digital Guides",
+  "description": "Instant download, 100% DRM-free technical e-books, AI architectures, design tokens, self-help manuals, and speculative fiction with lifetime updates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
