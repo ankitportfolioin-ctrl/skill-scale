@@ -29,7 +29,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useCart, ebookToProduct } from '@/lib/cart-context'
-import { GENRES, TESTIMONIALS, BLOG_POSTS, type EbookItem, productToEbook } from '@/lib/ebooks-data'
+import { GENRES, TESTIMONIALS, BLOG_POSTS, EBOOKS_CATALOG, type EbookItem, productToEbook } from '@/lib/ebooks-data'
 import { ProductModal } from '@/components/product-modal'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
