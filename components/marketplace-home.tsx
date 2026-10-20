@@ -53,13 +53,15 @@ export function MarketplaceHome({ preview = false }: { preview?: boolean }) {
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false)
 
   // Map products queried from the top-level /products collection to EbookItem list
+  // Fall back to local EBOOKS_CATALOG when Supabase has no products
   const catalogBooks = useMemo<EbookItem[]>(() => {
     if (storeProducts && storeProducts.length > 0) {
       return storeProducts
         .filter((p) => p.published !== false)
         .map((p) => productToEbook(p))
     }
-    return []
+    // Fallback to local catalog (demo mode / before Supabase is seeded)
+    return EBOOKS_CATALOG
   }, [storeProducts])
 
   const featuredBooks = useMemo(() => {
