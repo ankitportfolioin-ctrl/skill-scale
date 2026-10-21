@@ -1,171 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { EBOOKS_CATALOG } from '@/lib/ebooks-data'
-import { verifyDownloadToken, generateDownloadToken } from '@/lib/download-token'
+import { hasOrderAccess, orderBookIds, orderCustomerEmail, DOWNLOAD_FORMATS } from '@/lib/order-access'
+import { listBookFiles } from '@/lib/book-files'
 
-const SIGNED_URL_VALID_SECONDS = 7 * 24 * 60 * 60
+const FORMAT_INFO: Record<string, { label: string; description: string }> = {
+  epub: { label: 'EPUB (e-readers & tablets)', description: 'Reflowable layout for Apple Books, Kobo and most tablets' },
+  pdf: { label: 'PDF (desktop & print)', description: 'Fixed layout for large screens and printing' },
+  mobi: { label: 'MOBI (Kindle)', description: 'For Kindle devices and Send-to-Kindle' },
+  zip: { label: 'Complete bundle (.zip)', description: 'Everything for this title in one archive' },
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`
+}
 
 /**
- * Public/Guest-accessible order download verification endpoint.
- * Requires NO user login — verified via HMAC token or verified order ID check.
+ * Lists the downloads for an order. Access requires a token proving the payment was verified;
+ * an order id on its own, or an order merely existing, grants nothing.
  */
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ orderId: string }> }
-) {
+export async function GET(req: NextRequest, context: { params: Promise<{ orderId: string }> }) {
   try {
     const { orderId } = await context.params
-    const searchParams = req.nextUrl.searchParams
-    const token = searchParams.get('token') || ''
+    const token = req.nextUrl.searchParams.get('token') || ''
 
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 })
     }
 
     const adminDb = getSupabaseAdmin()
+    const { data: order } = await adminDb.from('orders').select('*').eq('id', orderId).maybeSingle()
 
-    // 1. Look up order row in Supabase
-    const { data: order, error: orderErr } = await adminDb
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .maybeSingle()
-
-    // 2. Verify token or order existence
-    const customerEmail =
-      order?.customer_email ||
-      order?.items?.[0]?.customerEmail ||
-      ''
-
-    const isTokenValid =
-      verifyDownloadToken(orderId, token, customerEmail) ||
-      (order?.download_token && order.download_token === token)
-
-    // Allow access if token is cryptographically valid, or order is confirmed completed in DB
-    if (!isTokenValid && (!order || order.status !== 'Completed')) {
-      return NextResponse.json(
-        { error: 'Invalid or expired download access token.' },
-        { status: 403 }
-      )
+    if (!hasOrderAccess(order, orderId, token)) {
+      return NextResponse.json({ error: 'Invalid or expired download access token.' }, { status: 403 })
     }
 
-    // 3. Find purchased book IDs
-    let bookIds: string[] = []
-
-    if (order?.items && Array.isArray(order.items)) {
-      bookIds = order.items.map((it: any) => it.id || it.bookId).filter(Boolean)
-    }
-
-    // Also check purchases table entitlements
-    const { data: purchases } = await adminDb
-      .from('purchases')
-      .select('*')
-      .like('id', `${orderId}%`)
-
-    if (purchases && purchases.length > 0) {
-      for (const p of purchases) {
-        if (p.book_id && !bookIds.includes(p.book_id)) {
-          bookIds.push(p.book_id)
-        }
-      }
-    }
-
-    // Fallback: if no items in DB order yet (e.g. order newly initialized), extract from catalog
+    const bookIds = orderBookIds(order)
     if (bookIds.length === 0) {
-      bookIds = [EBOOKS_CATALOG[0].id]
+      return NextResponse.json({ error: 'No items were found for this order.' }, { status: 404 })
     }
 
-    // 4. Generate download files with sizes, formats, and signed URLs
     const items = await Promise.all(
       bookIds.map(async (id) => {
-        const book = EBOOKS_CATALOG.find((b) => b.id === id) || {
-          id,
-          title: 'SkillScale Professional Guide',
-          author: 'SkillScale Studio',
-          category: 'Technical Guides',
-          image: '/products/multi-agent-ai.png',
-          formats: ['EPUB', 'PDF', 'MOBI'],
-          price: 29,
-          priceINR: 2749,
-          shortDescription: 'Complete DRM-free bundle with instant download.',
-        }
+        const book = EBOOKS_CATALOG.find((b) => b.id === id)
 
-        // Try to generate signed URL from Supabase storage if file is uploaded
-        let zipSignedUrl = ''
-        try {
-          const storagePath = `private-ebooks/${book.id}/${book.id}.zip`
-          const { data: signed } = await adminDb.storage
-            .from('ebooks')
-            .createSignedUrl(storagePath, SIGNED_URL_VALID_SECONDS)
-          if (signed?.signedUrl) {
-            zipSignedUrl = signed.signedUrl
-          }
-        } catch (storageErr) {
-          console.warn('[order-downloads] Storage sign notice:', storageErr)
-        }
+        // Only offer files that really exist in storage, with their real sizes.
+        const sizeByFormat = await listBookFiles(adminDb, id)
 
-        const validToken = token || generateDownloadToken(orderId, customerEmail)
+        const link = (format: string) =>
+          `/api/orders/${encodeURIComponent(orderId)}/download-file?bookId=${encodeURIComponent(id)}&format=${format}&token=${encodeURIComponent(token)}`
+
+        const formats = DOWNLOAD_FORMATS.filter((format) => format !== 'zip' && sizeByFormat.has(format)).map(
+          (format) => ({
+            format: format.toUpperCase(),
+            label: FORMAT_INFO[format].label,
+            description: FORMAT_INFO[format].description,
+            size: formatBytes(sizeByFormat.get(format) ?? 0),
+            ready: true,
+            downloadUrl: link(format),
+          }),
+        )
+
+        const hasZip = sizeByFormat.has('zip')
+        const nothingUploaded = formats.length === 0 && !hasZip
+
+        if (nothingUploaded) {
+          console.error(`[order-downloads] Paid order ${orderId} has no uploaded files for book "${id}".`)
+        }
 
         return {
-          id: book.id,
-          title: book.title,
-          author: book.author,
-          category: book.category,
-          image: book.image,
-          shortDescription: book.shortDescription,
-          zipDownloadUrl: zipSignedUrl || `/api/orders/${orderId}/download-file?bookId=${book.id}&format=zip&token=${validToken}`,
-          formats: [
-            {
-              format: 'EPUB',
-              label: 'EPUB Format (E-Readers & Tablets)',
-              description: 'Flowable layout optimized for Apple Books, Kobo, reMarkable & tablets',
-              size: '12.4 MB',
-              ready: true,
-              downloadUrl: `/api/orders/${orderId}/download-file?bookId=${book.id}&format=epub&token=${validToken}`,
-            },
-            {
-              format: 'PDF',
-              label: 'Crisp High-Res PDF (Desktop & Print)',
-              description: 'Pixel-perfect typography with vectorized diagrams for large screens',
-              size: '26.8 MB',
-              ready: true,
-              downloadUrl: `/api/orders/${orderId}/download-file?bookId=${book.id}&format=pdf&token=${validToken}`,
-            },
-            {
-              format: 'MOBI',
-              label: 'MOBI File (Kindle Native)',
-              description: 'Formatted specifically for Amazon Kindle hardware and Send-to-Kindle',
-              size: '14.1 MB',
-              ready: true,
-              downloadUrl: `/api/orders/${orderId}/download-file?bookId=${book.id}&format=mobi&token=${validToken}`,
-            },
-            {
-              format: 'ZIP',
-              label: 'Complete Bundle (.ZIP Archive)',
-              description: 'Includes all 3 formats plus source diagrams & bonus cheat-sheets',
-              size: '53.3 MB',
-              ready: true,
-              downloadUrl: zipSignedUrl || `/api/orders/${orderId}/download-file?bookId=${book.id}&format=zip&token=${validToken}`,
-            },
-          ],
+          id,
+          title: book?.title ?? id,
+          author: book?.author,
+          category: book?.category,
+          image: book?.image,
+          shortDescription: book?.shortDescription,
+          zipDownloadUrl: hasZip ? link('zip') : '',
+          formats,
+          unavailableMessage: nothingUploaded
+            ? 'The files for this title are not available yet. Your purchase is recorded, and we will email you as soon as they are ready.'
+            : undefined,
         }
-      })
+      }),
     )
 
     return NextResponse.json({
       orderId,
-      customerEmail: customerEmail || 'Customer',
-      status: order?.status || 'Completed',
-      total: order?.total || 27.49,
-      date: order?.date || new Date().toISOString(),
+      customerEmail: orderCustomerEmail(order) || 'Customer',
+      status: order?.status ?? 'Processing',
+      total: Number(order?.total ?? 0),
+      date: order?.date ?? '',
       items,
       verified: true,
     })
   } catch (err) {
     console.error('[order-downloads] Error loading downloads:', err)
-    return NextResponse.json(
-      { error: 'Failed to retrieve order downloads.' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to retrieve order downloads.' }, { status: 500 })
   }
 }

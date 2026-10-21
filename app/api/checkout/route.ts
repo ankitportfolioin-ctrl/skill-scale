@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { razorpay } from '@/lib/razorpay'
 import { EBOOKS_CATALOG } from '@/lib/ebooks-data'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
-import { generateDownloadToken } from '@/lib/download-token'
+import { isBookDeliverable } from '@/lib/book-files'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 })
     }
 
+    const adminDb = getSupabaseAdmin()
+
     // 2. Calculate order totals securely from catalog
     let totalPaise = 0
     const items = [] as {
@@ -40,6 +42,13 @@ export async function POST(req: NextRequest) {
       if (!book) {
         return NextResponse.json({ error: `Unknown book in order: ${line.id}` }, { status: 400 })
       }
+      // Never take money for a title we cannot deliver: it must have an uploaded file.
+      if (!(await isBookDeliverable(adminDb, book.id))) {
+        return NextResponse.json(
+          { error: `"${book.title}" is not available yet. Please remove it from your cart.` },
+          { status: 409 },
+        )
+      }
       const quantity = Math.max(1, Math.min(10, Math.floor(line.quantity) || 1))
       totalPaise += Math.round(book.priceINR * 100) * quantity
       items.push({
@@ -54,7 +63,6 @@ export async function POST(req: NextRequest) {
 
     // 3. Check if a Supabase user profile already exists for this email
     // If it exists, link to the existing user. Otherwise keep null until server-side webhook creation.
-    const adminDb = getSupabaseAdmin()
     let existingUserId: string | null = null
 
     try {
@@ -86,32 +94,26 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // 5. Generate signed download access token for instant post-payment verification
-    const downloadToken = generateDownloadToken(order.id, email)
-
-    // 6. Record order record in Supabase using the admin service role client
-    try {
-      await adminDb.from('orders').insert({
-        id: order.id,
-        user_id: existingUserId,
-        order_number: order.id,
-        total: totalPaise / 100,
-        status: 'Processing',
-        items,
-        customer_email: email,
-        download_token: downloadToken,
-      })
-    } catch (insertErr) {
-      // Fallback if custom schema columns (customer_email, download_token) aren't migrated yet
-      console.warn('[checkout] Orders standard insert fallback:', insertErr)
-      await adminDb.from('orders').insert({
-        id: order.id,
-        user_id: existingUserId,
-        order_number: order.id,
-        total: totalPaise / 100,
-        status: 'Processing',
-        items: items.map((it) => ({ ...it, customerEmail: email, downloadToken })),
-      })
+    // 5. Record the order using the admin service-role client.
+    // No download token is issued here: this runs BEFORE the customer has paid. A token is only
+    // issued after Razorpay's signature is verified (verify-payment route / webhook).
+    // supabase-js returns errors instead of throwing, so check explicitly. If the order cannot be
+    // saved we stop here, before the customer is asked to pay for something we cannot deliver.
+    const { error: insertError } = await adminDb.from('orders').insert({
+      id: order.id,
+      user_id: existingUserId,
+      order_number: order.id,
+      total: totalPaise / 100,
+      status: 'Processing',
+      items,
+      customer_email: email,
+    })
+    if (insertError) {
+      console.error('[checkout] Could not record order:', insertError.message)
+      return NextResponse.json(
+        { error: 'Could not start checkout. Please try again in a moment.' },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json({
@@ -120,7 +122,6 @@ export async function POST(req: NextRequest) {
       currency: 'INR',
       keyId: process.env.RAZORPAY_KEY_ID,
       prefillEmail: email,
-      downloadToken,
     })
   } catch (err) {
     console.error('[checkout] Error starting checkout:', err)

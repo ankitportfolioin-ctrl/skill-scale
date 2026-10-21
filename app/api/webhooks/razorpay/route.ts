@@ -19,6 +19,14 @@ import { generateDownloadToken } from '@/lib/download-token'
  * 6. Sends one unified transactional delivery email via Resend with DRM-free links and optional password setup.
  */
 
+/** Public base URL used in emails. Set NEXT_PUBLIC_APP_URL in production to your real domain. */
+function getSiteUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL
+  if (explicit) return explicit.replace(/\/+$/, '')
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  return 'https://new-project-canvas.vercel.app'
+}
+
 // Signed URLs valid for 7 days. Customer can always re-request fresh links from /download/[orderId] or their account.
 const SIGNED_URL_VALID_SECONDS = 7 * 24 * 60 * 60
 
@@ -303,10 +311,7 @@ async function fulfillOrder({ email, bookIds, orderId, explicitUserId }: Fulfill
   // 4. Generate Supabase password recovery link for setting password
   let setPasswordLink = ''
   try {
-    const siteUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      'https://ais-dev-d7fy3oaclte56z4rubxvp6-295777212068.asia-southeast1.run.app'
+    const siteUrl = getSiteUrl()
 
     const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
       type: 'recovery',
@@ -355,10 +360,7 @@ async function sendDeliveryEmail({
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.EMAIL_FROM
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    'https://ais-dev-d7fy3oaclte56z4rubxvp6-295777212068.asia-southeast1.run.app'
+  const siteUrl = getSiteUrl()
 
   const directOrderDownloadUrl = `${siteUrl}/download/${orderId}?token=${downloadToken}`
 

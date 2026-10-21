@@ -72,9 +72,12 @@ CREATE TABLE IF NOT EXISTS public.orders (
   total NUMERIC(10,2) NOT NULL DEFAULT 0.00,
   status TEXT DEFAULT 'Processing',
   items JSONB DEFAULT '[]'::jsonb,
+  customer_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- For databases created before this column existed (checkout and download access depend on it)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_email TEXT;
 
 -- PURCHASES: fulfilled entitlements and signed download paths for users
 CREATE TABLE IF NOT EXISTS public.purchases (
@@ -165,7 +168,31 @@ CREATE POLICY "Users can update their own profile"
 DROP POLICY IF EXISTS "Users and trigger can insert profiles" ON public.profiles;
 CREATE POLICY "Users and trigger can insert profiles"
   ON public.profiles FOR INSERT
-  WITH CHECK (auth.uid() = id OR public.is_admin() OR auth.uid() IS NULL);
+  WITH CHECK (auth.uid() = id OR public.is_admin());
+
+-- A signed-in user must never be able to make themselves an admin by editing their own profile
+-- row. Only an admin (or a trusted server context with no end-user session) may change `role`.
+CREATE OR REPLACE FUNCTION public.protect_profile_role()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT public.is_admin() THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.role := 'customer';
+    ELSIF NEW.role IS DISTINCT FROM OLD.role THEN
+      NEW.role := OLD.role;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_profile_role_trg ON public.profiles;
+CREATE TRIGGER protect_profile_role_trg
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_role();
 
 -- ADMINS POLICIES
 DROP POLICY IF EXISTS "Users can check their own admin status" ON public.admins;
@@ -183,13 +210,16 @@ CREATE POLICY "Admins can manage admins"
 DROP POLICY IF EXISTS "Public can view published products" ON public.products;
 CREATE POLICY "Public can view published products"
   ON public.products FOR SELECT
-  USING (true);
+  USING (published = true OR public.is_admin());
 
+-- Previously "USING (true) WITH CHECK (true)": anyone holding the public anon key could change
+-- or delete products. Only admins may write.
 DROP POLICY IF EXISTS "Allow product modifications" ON public.products;
-CREATE POLICY "Allow product modifications"
+DROP POLICY IF EXISTS "Admins manage products" ON public.products;
+CREATE POLICY "Admins manage products"
   ON public.products FOR ALL
-  USING (true)
-  WITH CHECK (true);
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- ORDERS POLICIES
 DROP POLICY IF EXISTS "Users can view their own orders" ON public.orders;
@@ -197,15 +227,16 @@ CREATE POLICY "Users can view their own orders"
   ON public.orders FOR SELECT
   USING (auth.uid() = user_id OR public.is_admin());
 
+-- Customers may only READ their orders. Orders are created by the checkout API and completed by
+-- the Razorpay webhook, both using the service-role key (which bypasses RLS). Letting users write
+-- orders would let them invent "Completed" orders for free.
 DROP POLICY IF EXISTS "Users can create orders" ON public.orders;
-CREATE POLICY "Users can create orders"
-  ON public.orders FOR INSERT
-  WITH CHECK (auth.uid() = user_id OR public.is_admin());
-
 DROP POLICY IF EXISTS "Users and admin can update orders" ON public.orders;
-CREATE POLICY "Users and admin can update orders"
-  ON public.orders FOR UPDATE
-  USING (auth.uid() = user_id OR public.is_admin());
+DROP POLICY IF EXISTS "Admins manage orders" ON public.orders;
+CREATE POLICY "Admins manage orders"
+  ON public.orders FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- PURCHASES POLICIES
 DROP POLICY IF EXISTS "Users can view their own purchases" ON public.purchases;
@@ -213,11 +244,14 @@ CREATE POLICY "Users can view their own purchases"
   ON public.purchases FOR SELECT
   USING (auth.uid() = user_id OR public.is_admin());
 
+-- Previously also allowed "auth.uid() IS NULL", which every unauthenticated request satisfies, so
+-- anyone could grant themselves purchases. The webhook uses the service role and does not need it.
 DROP POLICY IF EXISTS "Admins and service role can manage purchases" ON public.purchases;
-CREATE POLICY "Admins and service role can manage purchases"
+DROP POLICY IF EXISTS "Admins manage purchases" ON public.purchases;
+CREATE POLICY "Admins manage purchases"
   ON public.purchases FOR ALL
-  USING (public.is_admin() OR auth.uid() IS NULL)
-  WITH CHECK (public.is_admin() OR auth.uid() IS NULL);
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- WISHLIST POLICIES
 DROP POLICY IF EXISTS "Users can view their own wishlist" ON public.wishlist;
@@ -239,24 +273,24 @@ CREATE POLICY "Users can remove from wishlist"
 DROP POLICY IF EXISTS "Public can view cms documents" ON public.cms_documents;
 CREATE POLICY "Public can view cms documents"
   ON public.cms_documents FOR SELECT
-  USING (true);
+  USING (id = 'published' OR public.is_admin());
 
 DROP POLICY IF EXISTS "Admins can modify cms documents" ON public.cms_documents;
 CREATE POLICY "Admins can modify cms documents"
   ON public.cms_documents FOR ALL
-  USING (true)
-  WITH CHECK (true);
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- CMS REVISIONS POLICIES
 DROP POLICY IF EXISTS "Public can view cms revisions" ON public.cms_revisions;
 CREATE POLICY "Public can view cms revisions"
   ON public.cms_revisions FOR SELECT
-  USING (true);
+  USING (public.is_admin());
 
 DROP POLICY IF EXISTS "Admins can insert cms revisions" ON public.cms_revisions;
 CREATE POLICY "Admins can insert cms revisions"
   ON public.cms_revisions FOR INSERT
-  WITH CHECK (true);
+  WITH CHECK (public.is_admin());
 
 -- ==============================================================================
 -- 5. REALTIME REPLICATION
@@ -375,16 +409,34 @@ CREATE TRIGGER on_auth_user_created
 -- ==============================================================================
 -- 7. STORAGE BUCKET CONFIGURATION
 -- ==============================================================================
+-- PAID FILES: private bucket. Nothing here is readable by URL; downloads happen only through
+-- short-lived signed URLs created server-side after payment is verified.
+-- (A bucket marked public serves EVERY object in it to anyone who knows the path, regardless of
+-- any policy, so paid files must never share a bucket with public images.)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('ebooks', 'ebooks', true)
-ON CONFLICT (id) DO NOTHING;
+VALUES ('ebooks', 'ebooks', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+-- COVER IMAGES: public bucket, writable by admins only.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('covers', 'covers', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
 
 DROP POLICY IF EXISTS "Public access to ebooks bucket" ON storage.objects;
-CREATE POLICY "Public access to ebooks bucket"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'ebooks');
-
 DROP POLICY IF EXISTS "Allow file uploads to ebooks bucket" ON storage.objects;
-CREATE POLICY "Allow file uploads to ebooks bucket"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'ebooks');
+DROP POLICY IF EXISTS "Admins manage ebooks bucket" ON storage.objects;
+CREATE POLICY "Admins manage ebooks bucket"
+  ON storage.objects FOR ALL
+  USING (bucket_id = 'ebooks' AND public.is_admin())
+  WITH CHECK (bucket_id = 'ebooks' AND public.is_admin());
+
+DROP POLICY IF EXISTS "Public can read covers" ON storage.objects;
+CREATE POLICY "Public can read covers"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'covers');
+
+DROP POLICY IF EXISTS "Admins manage covers" ON storage.objects;
+CREATE POLICY "Admins manage covers"
+  ON storage.objects FOR ALL
+  USING (bucket_id = 'covers' AND public.is_admin())
+  WITH CHECK (bucket_id = 'covers' AND public.is_admin());

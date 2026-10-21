@@ -117,7 +117,7 @@ export function CheckoutModal() {
             })
             const verifyData = await verifyRes.json()
 
-            const token = verifyData.downloadToken || data.downloadToken || ''
+            const token = verifyData.verified ? verifyData.downloadToken || '' : ''
             // Immediate post-payment redirect to instant download screen without login
             window.location.href = `/download/${encodeURIComponent(response.razorpay_order_id)}?token=${encodeURIComponent(token)}`
           } catch (verifyErr) {

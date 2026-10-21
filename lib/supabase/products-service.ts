@@ -247,8 +247,10 @@ export async function deleteProductFromSupabase(productId: string): Promise<{
  */
 export async function uploadEbookFileToSupabase(
   file: File,
-  bucket = 'ebooks',
-  folder = 'files'
+  // Public images only. Paid e-book files live in the PRIVATE 'ebooks' bucket and are uploaded
+  // from the Supabase dashboard (see README), never through a public URL.
+  bucket = 'covers',
+  folder = 'images'
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     const fileExt = file.name.split('.').pop() || 'pdf'
