@@ -326,78 +326,26 @@ DECLARE
   user_name text;
   user_avatar text;
   user_provider text;
-  is_admin_user boolean;
 BEGIN
-  -- Extract name from raw_user_meta_data (fallback to email prefix or 'Reader')
-  user_name := coalesce(
-    new.raw_user_meta_data->>'name',
-    new.raw_user_meta_data->>'full_name',
-    split_part(new.email, '@', 1),
-    'Reader'
-  );
+  user_name := coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name',
+                        split_part(new.email, '@', 1), 'Reader');
+  user_avatar := coalesce(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture', null);
+  user_provider := coalesce(new.raw_app_meta_data->>'provider', 'password');
 
-  -- Extract avatar URL if present
-  user_avatar := coalesce(
-    new.raw_user_meta_data->>'avatar_url',
-    new.raw_user_meta_data->>'picture',
-    null
-  );
-
-  -- Extract provider from raw_app_meta_data (default to 'password')
-  user_provider := coalesce(
-    new.raw_app_meta_data->>'provider',
-    'password'
-  );
-
-  -- Check if user is in designated admin list
-  is_admin_user := lower(coalesce(new.email, '')) IN (
-    'portfolio.ankit.in@gmail.com',
-    'ankit.portfolio.in@gmail.com',
-    'digitalankit21@gmail.com'
-  );
-
-  -- Insert or update user profile in public.profiles
-  INSERT INTO public.profiles (
-    id,
-    email,
-    name,
-    avatar_url,
-    provider,
-    role,
-    joined_at,
-    updated_at
-  )
-  VALUES (
-    new.id,
-    coalesce(new.email, ''),
-    user_name,
-    user_avatar,
-    user_provider,
-    CASE WHEN is_admin_user THEN 'admin' ELSE 'customer' END,
-    coalesce(new.created_at, now()),
-    now()
-  )
+  -- Every new signup is a customer. Admins are added by hand to public.admins (never automatically).
+  INSERT INTO public.profiles (id, email, name, avatar_url, provider, role, joined_at, updated_at)
+  VALUES (new.id, coalesce(new.email, ''), user_name, user_avatar, user_provider, 'customer',
+          coalesce(new.created_at, now()), now())
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     name = coalesce(EXCLUDED.name, public.profiles.name),
     avatar_url = coalesce(EXCLUDED.avatar_url, public.profiles.avatar_url),
     provider = coalesce(EXCLUDED.provider, public.profiles.provider),
     updated_at = now();
-
-  -- If designated admin, also ensure public.admins has an enabled record
-  IF is_admin_user THEN
-    INSERT INTO public.admins (id, email, role, enabled)
-    VALUES (new.id, coalesce(new.email, ''), 'admin', true)
-    ON CONFLICT (id) DO UPDATE SET
-      email = EXCLUDED.email,
-      enabled = true;
-  END IF;
-
   RETURN new;
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE WARNING 'handle_new_user trigger error: %', SQLERRM;
-    RETURN new;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user trigger error: %', SQLERRM;
+  RETURN new;
 END;
 $$;
 
@@ -440,3 +388,15 @@ CREATE POLICY "Admins manage covers"
   ON storage.objects FOR ALL
   USING (bucket_id = 'covers' AND public.is_admin())
   WITH CHECK (bucket_id = 'covers' AND public.is_admin());
+
+
+-- ==============================================================================
+-- 8. JOURNAL (BLOG) ARTICLES: public can read published rows; only admins write
+-- ==============================================================================
+ALTER TABLE IF EXISTS public.journal_articles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS journal_public_read ON public.journal_articles;
+DROP POLICY IF EXISTS journal_admin_write ON public.journal_articles;
+CREATE POLICY journal_public_read ON public.journal_articles
+  FOR SELECT USING (published = true OR public.is_admin());
+CREATE POLICY journal_admin_write ON public.journal_articles
+  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
