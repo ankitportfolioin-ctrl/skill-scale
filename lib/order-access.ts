@@ -41,3 +41,27 @@ export type DownloadFormat = (typeof DOWNLOAD_FORMATS)[number]
 export function isDownloadFormat(value: string): value is DownloadFormat {
   return (DOWNLOAD_FORMATS as readonly string[]).includes(value)
 }
+
+export interface OrderItemInfo {
+  id: string
+  title: string
+  author?: string
+  price?: number
+}
+
+/** Title, author and price as recorded when the order was placed (not looked up again later). */
+export function orderItemInfo(order: OrderRow | null | undefined): Map<string, OrderItemInfo> {
+  const map = new Map<string, OrderItemInfo>()
+  if (!order || !Array.isArray(order.items)) return map
+  for (const raw of order.items as Array<Record<string, unknown>>) {
+    const id = String(raw?.id || raw?.bookId || '')
+    if (!id) continue
+    map.set(id, {
+      id,
+      title: String(raw?.title || id),
+      author: typeof raw?.author === 'string' ? raw.author : undefined,
+      price: typeof raw?.price === 'number' ? raw.price : undefined,
+    })
+  }
+  return map
+}

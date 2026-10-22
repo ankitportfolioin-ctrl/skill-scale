@@ -242,12 +242,7 @@ export function ProductModal({
                     <BadgeCheck className="size-4 text-primary" aria-label="Verified creator" />
                   </span>
                   <span className="text-muted-foreground">•</span>
-                  <div className="flex items-center gap-1">
-                    <Star className="size-4 fill-highlight text-highlight" />
-                    <span className="font-semibold text-foreground">{product.rating}</span>
-                    <span className="text-muted-foreground">({product.reviews} reviews)</span>
-                  </div>
-                  <span className="text-muted-foreground">•</span>
+
                   <span className="text-muted-foreground">{product.sales} sales</span>
                 </div>
               </div>

@@ -84,6 +84,12 @@ export function CheckoutModal() {
         throw new Error(data.error || 'Unable to start checkout. Please try again.')
       }
 
+      // Free titles: nothing to pay, so go straight to the download page.
+      if (data.free) {
+        window.location.href = `/download/${encodeURIComponent(data.orderId)}?token=${encodeURIComponent(data.downloadToken || '')}`
+        return
+      }
+
       // 2. Load Razorpay script
       const loaded = await loadRazorpayScript()
       if (!loaded) {
@@ -204,13 +210,15 @@ export function CheckoutModal() {
                         {line.product.title}
                       </h3>
                       <p className="text-[11px] text-muted-foreground">
-                        {line.product.category || 'Digital Edition'} • EPUB, PDF &amp; MOBI
+                        {line.product.category || 'Digital Edition'} • {line.product.format || 'Digital download'}
                       </p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-heading text-sm font-bold text-foreground">
-                      ₹{(line.product.price * line.quantity).toLocaleString('en-IN')}
+                      {line.product.price * line.quantity === 0
+                      ? 'Free'
+                      : `₹${(line.product.price * line.quantity).toLocaleString('en-IN')}`}
                     </p>
                     {line.quantity > 1 && (
                       <p className="text-[10px] text-muted-foreground">Qty: {line.quantity}</p>
@@ -223,10 +231,14 @@ export function CheckoutModal() {
             <div className="flex items-center justify-between pt-2 px-1 text-sm">
               <span className="text-muted-foreground">Total Due:</span>
               <span className="font-heading text-base font-bold text-foreground">
-                ₹{totalAmount.toLocaleString('en-IN')}{' '}
-                <span className="text-xs font-normal text-muted-foreground">
-                  INR
-                </span>
+                {totalAmount === 0 ? (
+                  'Free'
+                ) : (
+                  <>
+                    ₹{totalAmount.toLocaleString('en-IN')}{' '}
+                    <span className="text-xs font-normal text-muted-foreground">INR</span>
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -254,7 +266,7 @@ export function CheckoutModal() {
               />
             </div>
             <p className="text-[11px] text-muted-foreground leading-normal">
-              Your DRM-free download links, backup copy, and order receipt will be sent here immediately.
+              Your download opens right after checkout, and we will email you a copy of the link.
             </p>
           </div>
 
@@ -275,11 +287,11 @@ export function CheckoutModal() {
             {submitting ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                <span>Launching Razorpay...</span>
+                <span>{totalAmount === 0 ? 'Preparing your download...' : 'Launching Razorpay...'}</span>
               </>
             ) : (
               <>
-                <span>Continue to Payment</span>
+                <span>{totalAmount === 0 ? 'Get my free download' : 'Continue to Payment'}</span>
                 <ArrowRight className="size-4" />
               </>
             )}
@@ -288,14 +300,18 @@ export function CheckoutModal() {
           {/* Security & zero-barrier trust badges */}
           <div className="mt-4 space-y-1.5 text-center">
             <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <Lock className="size-3 text-emerald-600" />
-              <span>256-Bit SSL Encrypted Razorpay Checkout</span>
-              <span className="text-border">•</span>
+              {totalAmount > 0 && (
+                <>
+                  <Lock className="size-3 text-emerald-600" />
+                  <span>Secure payment by Razorpay</span>
+                  <span className="text-border">•</span>
+                </>
+              )}
               <ShieldCheck className="size-3 text-emerald-600" />
-              <span>100% DRM-Free</span>
+              <span>DRM-free download</span>
             </div>
             <p className="text-[10px] text-muted-foreground/80">
-              No account creation required to checkout. Instant access granted 4 seconds after payment.
+              No account needed. Your download opens right after checkout.
             </p>
           </div>
         </form>

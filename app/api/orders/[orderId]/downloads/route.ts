@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
-import { EBOOKS_CATALOG } from '@/lib/ebooks-data'
-import { hasOrderAccess, orderBookIds, orderCustomerEmail, DOWNLOAD_FORMATS } from '@/lib/order-access'
+import { hasOrderAccess, orderBookIds, orderCustomerEmail, orderItemInfo, DOWNLOAD_FORMATS } from '@/lib/order-access'
 import { listBookFiles } from '@/lib/book-files'
 
 const FORMAT_INFO: Record<string, { label: string; description: string }> = {
@@ -44,13 +43,14 @@ export async function GET(req: NextRequest, context: { params: Promise<{ orderId
     }
 
     const bookIds = orderBookIds(order)
+    const recorded = orderItemInfo(order)
     if (bookIds.length === 0) {
       return NextResponse.json({ error: 'No items were found for this order.' }, { status: 404 })
     }
 
     const items = await Promise.all(
       bookIds.map(async (id) => {
-        const book = EBOOKS_CATALOG.find((b) => b.id === id)
+        const book = recorded.get(id)
 
         // Only offer files that really exist in storage, with their real sizes.
         const sizeByFormat = await listBookFiles(adminDb, id)
@@ -80,9 +80,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ orderId
           id,
           title: book?.title ?? id,
           author: book?.author,
-          category: book?.category,
-          image: book?.image,
-          shortDescription: book?.shortDescription,
           zipDownloadUrl: hasZip ? link('zip') : '',
           formats,
           unavailableMessage: nothingUploaded

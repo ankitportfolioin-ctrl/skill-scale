@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { Resend } from 'resend'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
-import { EBOOKS_CATALOG } from '@/lib/ebooks-data'
+import { primaryBookFile } from '@/lib/book-files'
+import { orderItemInfo } from '@/lib/order-access'
 import { generateDownloadToken } from '@/lib/download-token'
 
 /**
@@ -243,44 +244,55 @@ async function fulfillOrder({ email, bookIds, orderId, explicitUserId }: Fulfill
     console.warn('[razorpay-webhook] Profile sync notice:', profileUpsertErr)
   }
 
-  // 2. Generate signed DRM-free download links & upsert entitlements
+  // 2. Generate signed DRM-free download links & upsert entitlements.
+  //    Title, author and price come from the order as it was placed at checkout, and the file is
+  //    whichever real file exists in storage for that title.
   const delivered: { title: string; downloadUrl: string; formats: string[] }[] = []
 
+  const { data: orderRow } = await db.from('orders').select('items').eq('id', orderId).maybeSingle()
+  const recorded = orderItemInfo(orderRow)
+
   for (const bookId of bookIds) {
-    const book = EBOOKS_CATALOG.find((b) => b.id === bookId)
-    if (!book) {
-      console.warn(`[razorpay-webhook] Unknown bookId in payment notes: ${bookId}`)
+    const item = recorded.get(bookId)
+    if (!item) {
+      console.warn(`[razorpay-webhook] Book ${bookId} is not on order ${orderId}; skipping.`)
       continue
     }
 
-    const storagePath = `private-ebooks/${bookId}/${bookId}.zip`
-
-    const { data: signed, error: signError } = await db.storage
-      .from('ebooks')
-      .createSignedUrl(storagePath, SIGNED_URL_VALID_SECONDS)
-
-    if (signError) {
-      console.error(
-        `[razorpay-webhook] Could not sign ${storagePath}. Will use instant order download route fallback.`,
-        signError,
-      )
+    const file = await primaryBookFile(db, bookId)
+    if (!file) {
+      // Paid, but no file is uploaded. Still record the purchase so nothing is lost, and shout
+      // about it: the customer needs the file as soon as it exists.
+      console.error(`[razorpay-webhook] PAID order ${orderId} has no uploaded file for "${bookId}".`)
     }
 
-    const downloadUrl = signed?.signedUrl || ''
+    let downloadUrl = ''
+    if (file) {
+      const { data: signed, error: signError } = await db.storage
+        .from('ebooks')
+        .createSignedUrl(file.path, SIGNED_URL_VALID_SECONDS)
+      if (signError) {
+        console.error(`[razorpay-webhook] Could not sign ${file.path}. The download page still works.`, signError)
+      }
+      downloadUrl = signed?.signedUrl || ''
+    }
+
+    const { data: productRow } = await db.from('products').select('image').eq('id', bookId).maybeSingle()
+    const formats = file ? file.formats.map((f) => f.toUpperCase()) : []
 
     const { error: upsertError } = await db.from('purchases').upsert(
       {
         id: `${orderId}_${bookId}`,
         user_id: userId,
         book_id: bookId,
-        title: book.title,
-        author: book.author,
-        format: book.formats.join(', '),
+        title: item.title,
+        author: item.author,
+        format: formats.join(', '),
         download_url: downloadUrl,
-        storage_path: storagePath,
+        storage_path: file?.path ?? null,
         purchased_at: new Date().toISOString(),
-        price: book.priceINR,
-        cover_image: book.image,
+        price: item.price ?? 0,
+        cover_image: productRow?.image ?? null,
       },
       { onConflict: 'id' },
     )
@@ -288,25 +300,24 @@ async function fulfillOrder({ email, bookIds, orderId, explicitUserId }: Fulfill
     if (upsertError) throw upsertError
 
     delivered.push({
-      title: book.title,
-      downloadUrl: downloadUrl || '',
-      formats: book.formats,
+      title: item.title,
+      downloadUrl,
+      formats,
     })
   }
 
   // 3. Update orders table to Completed and link to user_id
-  try {
-    await db
-      .from('orders')
-      .update({
-        status: 'Completed',
-        user_id: userId,
-        customer_email: email,
-      })
-      .eq('id', orderId)
-  } catch (orderUpdateErr) {
-    console.warn('[razorpay-webhook] Order update notice:', orderUpdateErr)
-  }
+  // supabase-js returns errors instead of throwing. Throw so Razorpay retries; fulfilment is
+  // idempotent (purchase rows are upserted), so a retry cannot create duplicates.
+  const { error: orderUpdateError } = await db
+    .from('orders')
+    .update({
+      status: 'Completed',
+      user_id: userId,
+      customer_email: email,
+    })
+    .eq('id', orderId)
+  if (orderUpdateError) throw orderUpdateError
 
   // 4. Generate Supabase password recovery link for setting password
   let setPasswordLink = ''

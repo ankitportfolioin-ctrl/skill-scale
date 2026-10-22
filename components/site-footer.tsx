@@ -93,7 +93,7 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-6 text-primary-foreground/80">
-              A curated digital library of high-impact technical guides, AI architectures, design tokens, systems engineering, self-help manuals, and speculative fiction. 100% DRM-free with lifetime updates.
+              Practical e-books for people who want to build with AI and get paid for it. 100% DRM-free with lifetime updates.
             </p>
             <div className="mt-6 flex items-center gap-3 text-xs text-primary-foreground/70">
               <span className="inline-flex items-center gap-1">
@@ -167,18 +167,8 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/about#team" className="hover:text-white transition">
-                  Meet the Team
-                </Link>
-              </li>
-              <li>
                 <Link href="/blog" className="hover:text-white transition">
                   Reading & Publishing Blog
-                </Link>
-              </li>
-              <li>
-                <Link href="/about#testimonials" className="hover:text-white transition">
-                  Author & Reader Reviews
                 </Link>
               </li>
             </ul>
@@ -191,24 +181,9 @@ export function SiteFooter() {
             </h4>
             <ul className="mt-4 flex flex-col gap-2.5 text-sm text-primary-foreground/80">
               <li>
-                <Link href="/ebooks#drm-free" className="hover:text-white transition">
-                  DRM-Free Promise
-                </Link>
-              </li>
-              <li>
-                <Link href="/ebooks#pricing" className="hover:text-white transition">
-                  Membership & Bundles
-                </Link>
-              </li>
-              <li>
-                <a href="mailto:support@skillscale.dev" className="hover:text-white transition">
-                  support@skillscale.dev
+                <a href="mailto:ankit.portfolio.in@gmail.com" className="hover:text-white transition">
+                  ankit.portfolio.in@gmail.com
                 </a>
-              </li>
-              <li>
-                <Link href="/admin" className="hover:text-white transition inline-flex items-center gap-1">
-                  CMS Admin Portal
-                </Link>
               </li>
             </ul>
           </div>
@@ -227,8 +202,14 @@ export function SiteFooter() {
             <Link href="/blog" className="hover:text-white transition">
               Articles
             </Link>
-            <Link href="/admin" className="hover:text-white transition">
-              Admin
+            <Link href="/privacy" className="hover:text-white transition">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-white transition">
+              Terms
+            </Link>
+            <Link href="/refunds" className="hover:text-white transition">
+              Refunds
             </Link>
           </div>
         </div>

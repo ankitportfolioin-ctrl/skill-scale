@@ -131,7 +131,7 @@ export function SiteHeader({ onSearch, initialSearch = '' }: SiteHeaderProps) {
                   </span>
                   <span className="hidden sm:inline text-indigo-300">•</span>
                   <span className="text-indigo-100 truncate text-[11px] sm:text-xs">
-                    {content?.announcement?.text || '100% DRM-Free EPUB, PDF & MOBI on all devices'}
+                    {content?.announcement?.text || 'DRM-free downloads, straight after checkout'}
                   </span>
                 </div>
               ) : (
@@ -141,7 +141,7 @@ export function SiteHeader({ onSearch, initialSearch = '' }: SiteHeaderProps) {
                 >
                   <span className="inline-flex items-center gap-1 font-semibold text-amber-300 shrink-0 text-[11px] sm:text-xs">
                     <Gift className="size-3 sm:size-3.5 shrink-0" />
-                    <span>Reader Perk</span>
+                    <span>Free account</span>
                   </span>
                   <span className="hidden sm:inline text-indigo-300">•</span>
                   <button
@@ -156,7 +156,7 @@ export function SiteHeader({ onSearch, initialSearch = '' }: SiteHeaderProps) {
                     }}
                     className="font-medium text-white underline underline-offset-2 hover:text-emerald-300 transition cursor-pointer truncate text-[11px] sm:text-xs"
                   >
-                    Create free account for 15% off
+                    Create a free account
                   </button>
                 </div>
               )}
@@ -397,9 +397,6 @@ export function SiteHeader({ onSearch, initialSearch = '' }: SiteHeaderProps) {
                 >
                   <User className="size-3.5 text-primary shrink-0" />
                   <span className="hidden min-[420px]:inline font-semibold">Account</span>
-                  <span className="hidden md:inline-flex rounded-lg bg-success/10 px-1.5 py-0.5 text-[10px] font-bold text-success">
-                    15% Off
-                  </span>
                 </button>
               )}
             </div>
@@ -556,24 +553,13 @@ export function SiteHeader({ onSearch, initialSearch = '' }: SiteHeaderProps) {
                     >
                       <span className="inline-flex items-center gap-2">
                         <Sparkles className="size-4" />
-                        Sign Up (Get 15% Off)
+                        Sign Up
                       </span>
                       <ArrowRight className="size-4" />
                     </button>
                   </>
                 )}
 
-                <Link
-                  href="/admin"
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-3.5 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Settings className="size-4" />
-                    Store Admin & CMS
-                  </span>
-                  <ArrowRight className="size-4" />
-                </Link>
               </div>
             </nav>
           </div>

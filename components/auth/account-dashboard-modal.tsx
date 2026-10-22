@@ -22,7 +22,6 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useAuth, AccountTab } from '@/lib/auth-context'
-import { EBOOKS_CATALOG } from '@/lib/ebooks-data'
 import { supabase } from '@/lib/supabase'
 
 export function AccountDashboardModal() {
@@ -74,7 +73,7 @@ export function AccountDashboardModal() {
   }
 
   // Find wishlist books from catalog
-  const wishlistBooks = EBOOKS_CATALOG.filter((book) => wishlist.includes(book.id))
+  const wishlistBooks = [] as { id: string; title: string; slug?: string }[]
 
   const tabs: { id: AccountTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'account', label: 'My Account', icon: User },
@@ -183,41 +182,6 @@ export function AccountDashboardModal() {
           {activeAccountTab === 'account' && (
             <div className="space-y-6">
               {/* Promo code reminder */}
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#10B981] text-white">
-                      <Sparkles className="size-4" />
-                    </span>
-                    <div>
-                      <h3 className="font-heading text-sm font-bold text-emerald-950">
-                        15% Reader Welcome Discount
-                      </h3>
-                      <p className="mt-0.5 text-xs text-emerald-800">
-                        Use this code at checkout to take 15% off any technical guide or bundle.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyCode}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100/50 shadow-2xs transition cursor-pointer"
-                  >
-                    {copiedCode ? (
-                      <>
-                        <Check className="size-3.5 text-emerald-600" />
-                        <span>Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="size-3.5 text-slate-400" />
-                        <span>SKILL15</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
               {/* Profile Details Card */}
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -253,7 +217,7 @@ export function AccountDashboardModal() {
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">100% DRM-Free Ownership Guarantee</h4>
                     <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                      Every guide in your SkillScale library is provided in universal EPUB and PDF formats. You own your files forever with zero vendor lock-in and lifetime free errata updates.
+                      Your files are plain downloads with no copy protection, so you can keep them wherever you like.
                     </p>
                   </div>
                 </div>

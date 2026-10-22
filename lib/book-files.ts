@@ -29,3 +29,20 @@ export async function listBookFiles(db: SupabaseClient, bookId: string): Promise
 export async function isBookDeliverable(db: SupabaseClient, bookId: string): Promise<boolean> {
   return (await listBookFiles(db, bookId)).size > 0
 }
+
+/** Preference order when a purchase needs a single "main" file: bundle first, then PDF, EPUB, MOBI. */
+const PREFERRED_ORDER: DownloadFormat[] = ['zip', 'pdf', 'epub', 'mobi']
+
+export async function primaryBookFile(
+  db: SupabaseClient,
+  bookId: string,
+): Promise<{ path: string; format: DownloadFormat; formats: DownloadFormat[] } | null> {
+  const files = await listBookFiles(db, bookId)
+  const format = PREFERRED_ORDER.find((f) => files.has(f))
+  if (!format) return null
+  return {
+    path: `private-ebooks/${bookId}/${bookId}.${format}`,
+    format,
+    formats: PREFERRED_ORDER.filter((f) => files.has(f)),
+  }
+}

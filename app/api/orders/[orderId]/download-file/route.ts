@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
-import { EBOOKS_CATALOG } from '@/lib/ebooks-data'
-import { hasOrderAccess, isDownloadFormat, orderBookIds } from '@/lib/order-access'
+import { hasOrderAccess, isDownloadFormat, orderBookIds, orderItemInfo } from '@/lib/order-access'
 
 const SIGNED_URL_SECONDS = 120
 
@@ -38,7 +37,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ orderId
       return NextResponse.json({ error: 'That title is not part of this order.' }, { status: 403 })
     }
 
-    const book = EBOOKS_CATALOG.find((b) => b.id === bookId)
+    const book = orderItemInfo(order).get(bookId)
     const safeName = (book?.title || bookId).replace(/[^a-zA-Z0-9_-]/g, '_')
     const storagePath = `private-ebooks/${bookId}/${bookId}.${format}`
 
