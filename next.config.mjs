@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Emits a self-contained server bundle. Required if you deploy to Railway/Docker;
-  // harmless on Vercel, which handles output packaging itself.
-  output: 'standalone',
+  // skipped on Vercel, which packages the output itself (standalone broke the build trace there).
+  output: process.env.VERCEL ? undefined : 'standalone',
 
   // Dev-only origin allowlist for running behind a tunnelled/remote dev host or preview container.
   allowedDevOrigins: [
