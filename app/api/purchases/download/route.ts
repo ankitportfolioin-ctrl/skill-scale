@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase-server'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 const SIGNED_URL_VALID_SECONDS = 7 * 24 * 60 * 60
 
@@ -25,7 +26,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file is associated with this purchase yet.' }, { status: 404 })
     }
 
-    const { data, error } = await client.storage.from('ebooks').createSignedUrl(storagePath, SIGNED_URL_VALID_SECONDS)
+    // Ownership was verified above through the user's RLS-constrained client. The private bucket
+    // has no end-user read policy, so the signing itself is done with the server-side client.
+    const { data, error } = await getSupabaseAdmin().storage.from('ebooks').createSignedUrl(storagePath, SIGNED_URL_VALID_SECONDS)
     if (error || !data?.signedUrl) return NextResponse.json({ error: 'Could not generate a download link.' }, { status: 500 })
 
     return NextResponse.json({ url: data.signedUrl })

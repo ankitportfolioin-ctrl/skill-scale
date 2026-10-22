@@ -111,12 +111,12 @@ export function SupabaseManager({ content }: { content: SiteContent }) {
 
     try {
       setIsUploading(true)
-      const res = await uploadEbookFileToSupabase(file, 'ebooks', 'files')
+      const res = await uploadEbookFileToSupabase(file, 'covers', 'images')
       if (res.success && res.url) {
         setUploadedUrl(res.url)
       } else {
         setUploadError(
-          res.error || 'Failed to upload to bucket. Ensure the "ebooks" storage bucket exists.'
+          res.error || 'Failed to upload to bucket. Ensure the "covers" storage bucket exists (run supabase/schema.sql).'
         )
       }
     } catch (err: any) {

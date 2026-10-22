@@ -165,9 +165,6 @@ export function EbookDetailInteractiveClient({ slug, initialBook }: Props) {
               <BookOpen className="size-4 mr-1.5" />
               Browse All E-Books
             </Button>
-            <Button variant="outline" render={<Link href="/admin" />}>
-              Go to Admin Panel
-            </Button>
           </div>
 
           {/* Popular e-books from store */}
@@ -241,16 +238,6 @@ export function EbookDetailInteractiveClient({ slug, initialBook }: Props) {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <SiteHeader />
 
-      {/* Draft banner notice if viewing an unpublished draft product */}
-      {isDraftOnly && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs text-amber-700 dark:text-amber-300 font-medium">
-          Draft Preview: This product is currently in your draft. Click{' '}
-          <Link href="/admin" className="underline font-bold hover:text-amber-800">
-            Publish to Live
-          </Link>{' '}
-          in the Admin Panel to write it to the <code>/products</code> collection.
-        </div>
-      )}
 
       {/* Breadcrumb Navigation */}
       <div className="border-b border-border bg-muted/30">
@@ -373,12 +360,11 @@ export function EbookDetailInteractiveClient({ slug, initialBook }: Props) {
               100% DRM-Free Guarantee
             </span>
             <h2 className="mt-3 font-heading text-2xl font-bold text-primary sm:text-3xl">
-              Buy Once, Read Forever on Any Device
+              Buy once, keep the file
             </h2>
             <p className="mt-2 text-sm text-muted-foreground leading-6">
-              When you purchase &ldquo;{book.title}&rdquo;, you receive instant download
-              links for PDF, EPUB, and MOBI with no proprietary app restrictions.
-              Enjoy free lifetime errata and updates.
+              When you purchase &ldquo;{book.title}&rdquo;, you get a DRM-free
+              download straight after checkout, with no proprietary app needed.
             </p>
           </div>
         </section>

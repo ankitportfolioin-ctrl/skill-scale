@@ -39,6 +39,7 @@ interface DownloadItem {
   shortDescription?: string
   zipDownloadUrl: string
   formats: FormatItem[]
+  unavailableMessage?: string
 }
 
 interface OrderDownloadData {
@@ -233,6 +234,11 @@ export default function OrderDownloadPage({
 
                   {/* Format List (The exact "Instant Download Screen" UI) */}
                   <div className="mt-6 space-y-3">
+                    {book.unavailableMessage && (
+                      <p className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                        {book.unavailableMessage}
+                      </p>
+                    )}
                     {book.formats.map((file) => {
                       const Icon = getFormatIcon(file.format)
                       const isDownloading = downloadingFormat === `${book.title}-${file.format}`

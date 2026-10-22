@@ -2,40 +2,40 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Lock, ShieldAlert, LogIn, LogOut, Loader2, ShieldCheck, KeyRound } from 'lucide-react'
-import { useAuth, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, isDesignatedAdmin } from '@/lib/auth-context'
+import { ArrowLeft, Lock, ShieldAlert, LogIn, LogOut, Loader2 } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 
 type AdminAccessStatus = 'checking' | 'authorized' | 'unauthorized' | 'unauthenticated'
 
 export function AdminAuth({ children }: { children: React.ReactNode }) {
-  const { user, authUser, isLoading: isAuthLoading, openLogin, logout, loginWithPassword } = useAuth()
+  const { user, authUser, isLoading: isAuthLoading, openLogin, logout } = useAuth()
   const [status, setStatus] = useState<AdminAccessStatus>('checking')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isLoggingInAdmin, setIsLoggingInAdmin] = useState(false)
 
   const verifyAdminAccess = useCallback(async (uid: string) => {
     setStatus('checking')
     setErrorMessage(null)
 
     try {
-      const currentEmail = authUser?.email || user?.email || ''
-      if (user?.role === 'admin' || isDesignatedAdmin(currentEmail)) {
-        setStatus('authorized')
-        return
-      }
-      setStatus('unauthorized')
+      // The `admins` table is the source of truth. Only an existing admin can write to it (RLS),
+      // so unlike an email list or a profile field it cannot be set by the visitor.
+      const { data, error } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('id', uid)
+        .eq('enabled', true)
+        .maybeSingle()
+
+      if (error) throw error
+      setStatus(data ? 'authorized' : 'unauthorized')
     } catch (err: unknown) {
       console.error('Error verifying admin authorization:', err)
-      const currentEmail = authUser?.email || user?.email || ''
-      if (isDesignatedAdmin(currentEmail)) {
-        setStatus('authorized')
-        return
-      }
       setStatus('unauthorized')
       setErrorMessage('Unable to verify administrator permissions due to a network or permission error.')
     }
-  }, [authUser, user])
+  }, [])
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -93,54 +93,7 @@ export function AdminAuth({ children }: { children: React.ReactNode }) {
             This workspace requires administrator credentials. Sign in with your verified administrator account to continue.
           </p>
 
-          {/* Default Admin Credentials Notice & Quick Action */}
-          <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3.5 text-xs text-indigo-950">
-            <div className="flex items-center justify-between font-semibold">
-              <span className="flex items-center gap-1.5">
-                <KeyRound className="size-3.5 text-indigo-600" />
-                Default Admin Credentials
-              </span>
-              <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-800">
-                Active
-              </span>
-            </div>
-            <div className="mt-2 space-y-1 font-mono text-[11px] text-slate-700">
-              <p>
-                <span className="text-slate-400">ID:</span>{' '}
-                <strong className="text-indigo-950 select-all">{DEFAULT_ADMIN_EMAIL}</strong>
-              </p>
-              <p>
-                <span className="text-slate-400">Pass:</span>{' '}
-                <strong className="text-indigo-950 select-all">{DEFAULT_ADMIN_PASSWORD}</strong>
-              </p>
-            </div>
-          </div>
-
           <div className="mt-6 flex flex-col gap-3">
-            <Button
-              id="admin-auth-quick-login-btn"
-              type="button"
-              disabled={isLoggingInAdmin}
-              onClick={async () => {
-                setIsLoggingInAdmin(true)
-                await loginWithPassword(DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD)
-                setIsLoggingInAdmin(false)
-              }}
-              className="h-11 w-full gap-2 bg-[#312E81] text-white hover:bg-[#28256a] font-semibold cursor-pointer shadow-sm"
-            >
-              {isLoggingInAdmin ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Signing In as Admin...
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="size-4" />
-                  Sign In as Default Admin
-                </>
-              )}
-            </Button>
-
             <Button
               id="admin-auth-login-btn"
               type="button"

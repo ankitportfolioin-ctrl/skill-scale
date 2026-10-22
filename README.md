@@ -59,14 +59,19 @@ and not the other, the panel will load and every save will fail.
 
 ### Storage
 
-Create a private bucket named `ebooks` (the schema does this for you) and upload files at
-exactly:
+Two buckets (both created by `supabase/schema.sql`):
 
-```
-private-ebooks/{bookId}/{bookId}.zip
-```
+| Bucket | Public? | Holds |
+|---|---|---|
+| `ebooks` | **No, private** | Paid files only, at exactly `private-ebooks/{bookId}/{bookId}.{epub\|pdf\|mobi\|zip}` |
+| `covers` | Yes | Cover images uploaded from the admin panel |
 
-A path mismatch produces a successful payment with a broken download link.
+Upload paid files from the Supabase dashboard (Storage > ebooks). A path mismatch means the
+customer sees "not available yet". **A title with no uploaded file cannot be purchased** — checkout
+refuses it, so you can never take payment for something that cannot be delivered.
+
+Never put paid files in a public bucket: a public bucket serves every object in it to anyone who
+knows the path, whatever the policies say.
 
 ---
 

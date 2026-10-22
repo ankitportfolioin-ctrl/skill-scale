@@ -1,5 +1,41 @@
 # Changes applied to this repository
 
+## 2026-10-21 — Payment, download and database hardening
+
+**Free-download holes closed (code)**
+- Checkout no longer issues a download token. It used to hand one out *before payment*, and the
+  file route accepted it without checking payment, so anyone could download without paying.
+- Download tokens are now issued only after Razorpay's signature is verified (verify-payment and
+  the webhook) and are bound to the order and the email saved on the order.
+- The file route now checks the requested book is part of the order (a token for the cheapest
+  book used to unlock every book), validates the format, and redirects to a 2-minute signed URL.
+- Removed the fallback that served a short text note named `.epub`/`.pdf` when a file was missing,
+  and the fabricated file sizes. Only files that exist in storage are listed, with real sizes.
+- Removed the hardcoded fallback signing secret.
+- Checkout refuses any title with no uploaded file, and now checks that the order row was saved.
+- The Razorpay webhook's fallback site URL was a leftover Google AI Studio dev address; it now
+  uses `NEXT_PUBLIC_APP_URL` / the Vercel production URL.
+
+**Database (`supabase/schema.sql` — must be re-run in the Supabase SQL Editor to take effect)**
+- `products`, `cms_documents`, `cms_revisions`: writes were open to anyone with the public anon
+  key; now admin-only. Drafts and revision history are no longer publicly readable.
+- `purchases`: removed `auth.uid() IS NULL`, which every unauthenticated request satisfies.
+- `orders`: customers can read their own orders only; they can no longer insert or update them.
+- `profiles.role` can no longer be changed by the user (trigger), only by an admin.
+- `orders.customer_email` column added; it was missing, so order rows were silently not saved.
+- `ebooks` bucket is now private; new public `covers` bucket for images. Storage writes are
+  admin-only.
+
+**Admin panel**
+- Access is decided by the `admins` table (writable only by an admin) instead of a hardcoded email
+  list or a self-editable profile field. Removed the "Default Admin Credentials" box from the
+  sign-in screen.
+
+---
+
+# Earlier changes
+
+
 Everything below is already in the folder. This file is the record of what changed, why,
 and what is still yours to do.
 
