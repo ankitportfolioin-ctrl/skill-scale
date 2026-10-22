@@ -1,5 +1,6 @@
 'use client'
 
+import type { EbookItem } from '@/lib/ebooks-data'
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
@@ -73,7 +74,7 @@ export function AccountDashboardModal() {
   }
 
   // Find wishlist books from catalog
-  const wishlistBooks = [] as { id: string; title: string; slug?: string }[]
+  const wishlistBooks = [] as EbookItem[]
 
   const tabs: { id: AccountTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'account', label: 'My Account', icon: User },
