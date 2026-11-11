@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ orderId
     if (error || !data?.signedUrl) {
       console.error(`[download-file] No file at ${storagePath} for paid order ${orderId}:`, error?.message)
       return NextResponse.json(
-        { error: 'This file is not available yet. Your purchase is recorded and we will email you when it is ready.' },
+        { error: 'This file is not available yet. Your purchase is recorded. Write to ankit.portfolio.in@gmail.com and we will sort it out.' },
         { status: 404 },
       )
     }

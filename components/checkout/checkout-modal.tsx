@@ -266,7 +266,7 @@ export function CheckoutModal() {
               />
             </div>
             <p className="text-[11px] text-muted-foreground leading-normal">
-              Your download opens right after checkout, and we will email you a copy of the link.
+              Your download opens right after checkout. Keep the page open until it finishes.
             </p>
           </div>
 
