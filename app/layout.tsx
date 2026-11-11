@@ -18,12 +18,12 @@ const sora = Sora({
 })
 
 export const metadata: Metadata = {
-  title: 'SkillScale — Curated E-Book Library & Practical Digital Guides',
+  title: 'SkillScale — Practical E-Books on AI, Careers and Freelancing',
   description: 'Practical DRM-free e-books on building with AI and getting paid for it. Download straight after checkout.',
   generator: 'v0.app',
-  keywords: ['e-books', 'technical guides', 'AI architecture', 'design systems', 'self-help', 'sci-fi', 'DRM-free EPUB', 'PDF books'],
+  keywords: ['e-books', 'AI guides', 'job search', 'freelancing India', 'SQL', 'Excel', 'prompting', 'small business', 'DRM-free PDF'],
   openGraph: {
-    title: 'SkillScale — Curated E-Book Library & Practical Digital Guides',
+    title: 'SkillScale — Practical E-Books on AI, Careers and Freelancing',
     description: 'Practical DRM-free e-books on building with AI and getting paid for it.',
     type: 'website',
   },
